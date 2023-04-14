@@ -4,7 +4,8 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 const app = express();
 
@@ -21,7 +22,7 @@ const userSchema = new mongoose.Schema({
 
 // console.log(process.env.SECRET);
 
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
+
 
 const User = new mongoose.model("User", userSchema);
 
@@ -38,18 +39,19 @@ app.get("/login", (req, res) => {
     res.render("login");
 })
 app.post("/register", (req, res) => {
-   
+  bcrypt.hash(req.body.password, saltRounds).then(function(hash) {
+    // Store hash in your password DB.
     const newuser = new User({
-        email: req.body.username,
-        password: req.body.password
-      
-    });
-
-    newuser.save()
-        .then(() => {
-            res.render("secrets");
-        })
-        .catch((err) => { console.log(err); })
+      email: req.body.username,
+      password:hash
+  });
+  newuser.save()
+      .then(() => {
+          res.render("secrets");
+      })
+      .catch((err) => { console.log(err); })
+});
+   
 });
 // app.post("/login", (req, res) => {
 
@@ -73,12 +75,16 @@ app.post("/login", (req, res) => {
     User.findOne({ email: email })
       .then((foundUser) => {
         if (foundUser) {
-          if (foundUser.password === password) {
-            res.render("secrets");
-          } else {
-            console.log("Incorrect password");
-            res.redirect("/login");
-          }
+          bcrypt.compare(password, foundUser.password)
+            .then(function (result) {
+              // result == true
+              if (result == true) {
+                res.render("secrets");
+              } else {
+                console.log("Incorrect password");
+                res.redirect("/login");
+              }
+            }); 
         } else {
           console.log("User not found");
           res.redirect("/login");
@@ -89,15 +95,5 @@ app.post("/login", (req, res) => {
         res.redirect("/login");
       });
   });
-
-
-
-
-
-
-
-
-
-
 
 app.listen(3000, () => { console.log("server running at port 3000") });
